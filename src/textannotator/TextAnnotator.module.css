@@ -17,6 +17,15 @@ ul {
   font-size: 1.2rem;
   font-weight: 400;
   position: relative;
+  display: flex;
+}
+.workArea {
+  flex: 1;
+}
+.result {
+  width: 20%;
+  font-size: 14px;
+  line-height: 1rem;
 }
 .labeledToken {
   border: 3px solid #66aa55;

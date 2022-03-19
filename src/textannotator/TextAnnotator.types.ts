@@ -4,6 +4,13 @@ export interface Token {
   offset: number;
   labelName?: string;
 }
+export interface AnnotationResult {
+  tokenId: string;
+  labelName: string;
+  startPosition: number;
+  endPosition: number;
+  text: string;
+}
 
 export interface Label {
   name: string;

@@ -1,9 +1,10 @@
 import * as React from "react";
 import { plainText } from "./dummyText";
 import LabeledToken from "./LabeledToken";
-import { Token } from "./TextAnnotator.types";
+import { Token, AnnotationResult } from "./TextAnnotator.types";
 import LabelSelector from "./LabelSelector";
 import styles from "./TextAnnotator.module.css";
+import { useState } from "@storybook/addons";
 
 interface LabelSelectionModalState {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface LabelSelectionModalState {
 }
 
 function TextAnnotator(props: any) {
+  const [value, setValue] = React.useState<AnnotationResult[]>([]);
   const [tokens, setTokens] = React.useState<Token[]>([
     {
       tokenId: `T${Date.now()}`,
@@ -32,11 +34,11 @@ function TextAnnotator(props: any) {
     React.useState<any>();
 
   React.useEffect(() => {
-    document.onselectionchange = function () {
+    document.onselectionchange = function (e) {
       if (selectionChangeDebounce) {
         clearTimeout(selectionChangeDebounce);
       }
-      setSelectionChangeDebounce(setTimeout(onMouseUpCapture, 400));
+      setSelectionChangeDebounce(setTimeout(onMouseUpCapture, 700));
     };
     return () => {
       document.onselectionchange = null;
@@ -57,7 +59,7 @@ function TextAnnotator(props: any) {
     const { selectedTokenId, selectionStart, selectionEnd } =
       labelSelectionModal;
     const currentToken = tokens.find((t) => t.tokenId === selectedTokenId);
-    if (currentToken && selectionStart && selectionEnd) {
+    if (currentToken && selectionStart !== undefined && selectionEnd) {
       const subtokens: Token[] = [
         {
           text: currentToken.text.slice(0, selectionStart),
@@ -77,6 +79,16 @@ function TextAnnotator(props: any) {
         },
       ];
       closeModal();
+      setValue([
+        ...value,
+        {
+          tokenId: subtokens[1].tokenId,
+          labelName,
+          startPosition: subtokens[1].offset,
+          endPosition: subtokens[1].offset + subtokens[1].text.length,
+          text: subtokens[1].text,
+        },
+      ]);
       setTokens(
         tokens
           .map((t) => (t.tokenId === currentToken.tokenId ? subtokens : t))
@@ -87,12 +99,16 @@ function TextAnnotator(props: any) {
   };
   const onMouseUpCapture = () => {
     const selection = window.getSelection() as Selection;
-    if (selectionIsEmpty(selection)) {
+    if (
+      selection.type !== "Range" ||
+      selectionIsEmpty(selection) ||
+      selection?.anchorNode?.parentElement?.className !== "validToken"
+    ) {
       return;
     }
     const selectedTokenId = selection?.anchorNode?.parentElement?.id;
     const currentToken = tokens.find((t) => t.tokenId === selectedTokenId);
-    if (currentToken?.labelName) {
+    if (!currentToken || currentToken?.labelName) {
       return;
     }
     const startPosition = selection.anchorOffset;
@@ -149,30 +165,34 @@ function TextAnnotator(props: any) {
     }
     updatedTokens[tokenIndexToRemove] = currentToken;
     setTokens(updatedTokens.filter((t) => t.tokenId !== "REMOVE_TOKEN"));
+    setValue(value.filter((v) => v.tokenId !== tokenToRemove.tokenId));
   };
   return (
     <div className={styles.container}>
-      {labelSelectionModal.isOpen && (
+      {labelSelectionModal.isOpen ? (
         <LabelSelector
           left={labelSelectionModal?.left}
           top={labelSelectionModal?.top}
           closeModal={closeModal}
           onSelectLabel={addLabel}
         />
-      )}
-      {tokens.map((token) =>
-        token.labelName ? (
-          <LabeledToken
-            token={token}
-            key={token.tokenId}
-            onRemoveLabel={onRemoveLabel}
-          />
-        ) : (
-          <span id={token.tokenId} key={token.tokenId}>
-            {token.text}
-          </span>
-        )
-      )}
+      ) : null}
+      <div className={styles.workArea}>
+        {tokens.map((token) =>
+          token.labelName ? (
+            <LabeledToken
+              token={token}
+              key={token.tokenId}
+              onRemoveLabel={onRemoveLabel}
+            />
+          ) : (
+            <span id={token.tokenId} key={token.tokenId} className="validToken">
+              {token.text}
+            </span>
+          )
+        )}
+      </div>
+      <div className={styles.result}>{JSON.stringify(value, null, 2)}</div>
     </div>
   );
 }
