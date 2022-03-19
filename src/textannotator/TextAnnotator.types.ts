@@ -4,3 +4,9 @@ export interface Token {
   offset: number;
   labelName?: string;
 }
+
+export interface Label {
+  name: string;
+  color: string;
+  fontColor: string;
+}

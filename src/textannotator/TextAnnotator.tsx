@@ -2,7 +2,17 @@ import * as React from "react";
 import { plainText } from "./dummyText";
 import LabeledToken from "./LabeledToken";
 import { Token } from "./TextAnnotator.types";
+import LabelSelector from "./LabelSelector";
 import styles from "./TextAnnotator.module.css";
+
+interface LabelSelectionModalState {
+  isOpen: boolean;
+  left?: number;
+  top?: number;
+  selectionStart?: number;
+  selectionEnd?: number;
+  selectedTokenId?: string;
+}
 
 function TextAnnotator(props: any) {
   const [tokens, setTokens] = React.useState<Token[]>([
@@ -12,6 +22,27 @@ function TextAnnotator(props: any) {
       offset: 0,
     },
   ]);
+
+  const [labelSelectionModal, setLabelSelectionModal] =
+    React.useState<LabelSelectionModalState>({
+      isOpen: false,
+    });
+
+  const [selectionChangeDebounce, setSelectionChangeDebounce] =
+    React.useState<any>();
+
+  React.useEffect(() => {
+    document.onselectionchange = function () {
+      if (selectionChangeDebounce) {
+        clearTimeout(selectionChangeDebounce);
+      }
+      setSelectionChangeDebounce(setTimeout(onMouseUpCapture, 400));
+    };
+    return () => {
+      document.onselectionchange = null;
+    };
+  });
+
   const selectionIsEmpty = (selection: Selection) => {
     if (selection?.focusNode) {
       const position = selection?.anchorNode?.compareDocumentPosition(
@@ -19,22 +50,14 @@ function TextAnnotator(props: any) {
       );
       return position === 0 && selection.focusOffset === selection.anchorOffset;
     }
+    return true;
   };
-  const onMouseUpCapture = () => {
-    const selection = window.getSelection() as Selection;
-    if (selectionIsEmpty(selection)) {
-      return;
-    }
-    const selectedTokenId = selection?.anchorNode?.parentElement?.id;
-    const currentToken = tokens.find((t) => t.tokenId === selectedTokenId);
-    if (currentToken) {
-      const startPosition = selection.anchorOffset;
-      const endPosition = selection.focusOffset;
-      const [selectionStart, selectionEnd] =
-        startPosition < endPosition
-          ? [startPosition, endPosition]
-          : [endPosition, startPosition];
 
+  const addLabel = (labelName: string) => {
+    const { selectedTokenId, selectionStart, selectionEnd } =
+      labelSelectionModal;
+    const currentToken = tokens.find((t) => t.tokenId === selectedTokenId);
+    if (currentToken && selectionStart && selectionEnd) {
       const subtokens: Token[] = [
         {
           text: currentToken.text.slice(0, selectionStart),
@@ -45,7 +68,7 @@ function TextAnnotator(props: any) {
           text: currentToken.text.slice(selectionStart, selectionEnd),
           tokenId: `TB${Date.now()}`,
           offset: currentToken.offset + selectionStart,
-          labelName: "ORG",
+          labelName,
         },
         {
           text: currentToken.text.slice(selectionEnd),
@@ -53,6 +76,7 @@ function TextAnnotator(props: any) {
           offset: currentToken.offset + selectionEnd,
         },
       ];
+      closeModal();
       setTokens(
         tokens
           .map((t) => (t.tokenId === currentToken.tokenId ? subtokens : t))
@@ -60,6 +84,42 @@ function TextAnnotator(props: any) {
       );
       window.getSelection()?.empty();
     }
+  };
+  const onMouseUpCapture = () => {
+    const selection = window.getSelection() as Selection;
+    if (selectionIsEmpty(selection)) {
+      return;
+    }
+    const selectedTokenId = selection?.anchorNode?.parentElement?.id;
+    const currentToken = tokens.find((t) => t.tokenId === selectedTokenId);
+    if (currentToken?.labelName) {
+      return;
+    }
+    const startPosition = selection.anchorOffset;
+    const endPosition = selection.focusOffset;
+    const [selectionStart, selectionEnd] =
+      startPosition < endPosition
+        ? [startPosition, endPosition]
+        : [endPosition, startPosition];
+    const range = selection.getRangeAt(0).cloneRange();
+    const rects = range.getClientRects();
+    if (rects.length > 0) {
+      const leftPos = Math.round(rects[0].left + rects[0].width / 2);
+      const topPos = Math.round(rects[0].top + rects[0].height / 2);
+      setLabelSelectionModal({
+        isOpen: true,
+        left: leftPos,
+        top: topPos,
+        selectionStart,
+        selectionEnd,
+        selectedTokenId,
+      });
+    }
+  };
+  const closeModal = () => {
+    setLabelSelectionModal({
+      isOpen: false,
+    });
   };
   const onRemoveLabel = (tokenToRemove: Token) => {
     const tokenIndexToRemove = tokens.findIndex(
@@ -92,6 +152,14 @@ function TextAnnotator(props: any) {
   };
   return (
     <div className={styles.container}>
+      {labelSelectionModal.isOpen && (
+        <LabelSelector
+          left={labelSelectionModal?.left}
+          top={labelSelectionModal?.top}
+          closeModal={closeModal}
+          onSelectLabel={addLabel}
+        />
+      )}
       {tokens.map((token) =>
         token.labelName ? (
           <LabeledToken
@@ -100,11 +168,7 @@ function TextAnnotator(props: any) {
             onRemoveLabel={onRemoveLabel}
           />
         ) : (
-          <span
-            id={token.tokenId}
-            key={token.tokenId}
-            onMouseUp={onMouseUpCapture}
-          >
+          <span id={token.tokenId} key={token.tokenId}>
             {token.text}
           </span>
         )
