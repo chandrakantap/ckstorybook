@@ -4,7 +4,6 @@ import LabeledToken from "./LabeledToken";
 import { Token, AnnotationResult } from "./TextAnnotator.types";
 import LabelSelector from "./LabelSelector";
 import styles from "./TextAnnotator.module.css";
-import { useState } from "@storybook/addons";
 
 interface LabelSelectionModalState {
   isOpen: boolean;
@@ -38,7 +37,7 @@ function TextAnnotator(props: any) {
       if (selectionChangeDebounce) {
         clearTimeout(selectionChangeDebounce);
       }
-      setSelectionChangeDebounce(setTimeout(onMouseUpCapture, 700));
+      setSelectionChangeDebounce(setTimeout(openLabelSelector, 400));
     };
     return () => {
       document.onselectionchange = null;
@@ -97,7 +96,7 @@ function TextAnnotator(props: any) {
       window.getSelection()?.empty();
     }
   };
-  const onMouseUpCapture = () => {
+  const openLabelSelector = () => {
     const selection = window.getSelection() as Selection;
     if (
       selection.type !== "Range" ||
